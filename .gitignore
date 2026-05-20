@@ -1,0 +1,12 @@
+# Dependências do Frontend
+node_modules/
+dist/
+
+# Builds do Backend (.NET)
+bin/
+obj/
+.vs/
+*.user
+
+# Outros
+.env

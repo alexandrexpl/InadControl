@@ -1,0 +1,6 @@
+@InadControl.Api_HostAddress = http://localhost:5278
+
+GET {{InadControl.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
