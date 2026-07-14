@@ -3,6 +3,7 @@ using System;
 using InadControl.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InadControl.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260710183253_CriandoTabelaCobrancas")]
+    partial class CriandoTabelaCobrancas
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -72,10 +75,6 @@ namespace InadControl.Api.Migrations
                     b.Property<DateTime>("DataVencimento")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("NumeroDocumento")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("Observacao")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -84,10 +83,6 @@ namespace InadControl.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
-
-                    b.Property<string>("TipoDocumento")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
 
                     b.Property<decimal>("Valor")
                         .HasColumnType("decimal(18,2)");
