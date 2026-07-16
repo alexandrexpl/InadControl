@@ -1253,7 +1253,7 @@ const CalculadoraPage = () => {
 // ==========================================
 // 🧩 COMPONENTE TELA: Configurações
 // ==========================================
-const ConfiguracoesPage = () => {
+const ConfiguracoesPage = ({ usuarioLogado }) => {
   const [usuarios, setUsuarios] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1395,9 +1395,15 @@ const ConfiguracoesPage = () => {
                       <button onClick={() => openReset(user)} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors" title="Resetar Senha">
                         <Key size={16} />
                       </button>
-                      <button onClick={() => openDelete(user)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Excluir Acesso">
-                        <Trash2 size={16} />
-                      </button>
+                      {String(user.nome).trim().toLowerCase() === String(usuarioLogado?.nome).trim().toLowerCase() ? (
+                        <button disabled className="p-2 text-gray-600/50 cursor-not-allowed rounded-lg" title="Ação bloqueada para a conta atual">
+                          <Trash2 size={16} />
+                        </button>
+                      ) : (
+                        <button onClick={() => openDelete(user)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Remover Acesso">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1562,7 +1568,7 @@ export default function App() {
         {activeTab === 'cobrancas' && <CobrancasPage clients={clients} triggerUpdate={triggerUpdate} />}
         {activeTab === 'clientes' && <ClientesPage clients={clients} triggerUpdate={triggerUpdate} />}
         {activeTab === 'calculadora' && <CalculadoraPage />}
-        {activeTab === 'configuracoes' && <ConfiguracoesPage />}
+        {activeTab === 'configuracoes' && <ConfiguracoesPage usuarioLogado={usuario} />}
       </main>
     </div>
   );
