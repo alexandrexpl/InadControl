@@ -840,7 +840,6 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
   );
 };
 
-// COMPONENTE TELA: Gestão de Clientes (CRUD Completo)
 const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [riskFilter, setRiskFilter] = useState('Todos');
@@ -895,6 +894,36 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
     setIsModalOpen(true);
   };
 
+  // 1 e 2. MÁSCARAS DE FORMATAÇÃO E LIMITAÇÃO DE CARACTERES
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    let formattedValue = value;
+
+    if (name === 'documento') {
+      const v = value.replace(/\D/g, ''); // Remove tudo que não for número
+      if (v.length <= 11) {
+        // Máscara de CPF: 000.000.000-00
+        formattedValue = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4').replace(/(-\d{2})\d+?$/, '$1');
+      } else {
+        // Máscara de CNPJ: 00.000.000/0000-00
+        formattedValue = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5').replace(/(-\d{2})\d+?$/, '$1');
+      }
+    }
+
+    if (name === 'telefone') {
+      const v = value.replace(/\D/g, ''); // Remove tudo que não for número
+      if (v.length <= 10) {
+        // Máscara de Telefone Fixo: (DD) 0000-0000
+        formattedValue = v.replace(/(\d{2})(\d{4})(\d{1,4})/, '($1) $2-$3').replace(/(-\d{4})\d+?$/, '$1');
+      } else {
+        // Máscara de Celular: (DD) 00000-0000
+        formattedValue = v.replace(/(\d{2})(\d{5})(\d{1,4})/, '($1) $2-$3').replace(/(-\d{4})\d+?$/, '$1');
+      }
+    }
+
+    setFormData(prev => ({ ...prev, [name]: formattedValue }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -930,19 +959,27 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
     setIsDeleteModalOpen(true);
   };
 
+  // 5. NÃO PERMITIR EXCLUIR CLIENTE COM COBRANÇAS (Tratamento do Erro da API)
   const confirmDelete = async () => {
     if (!clientToDelete) return;
     setIsDeleting(true);
     setLocalError(null);
     try {
       const response = await fetch(`${API_BASE_URL}/Clientes/${clientToDelete.id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Falha ao excluir o cliente');
+
+      // Se a API devolver BadRequest (400), pegamos a mensagem exata para mostrar ao utilizador
+      if (!response.ok) {
+        const errorMessage = await response.text();
+        throw new Error(errorMessage || 'Falha ao excluir o cliente');
+      }
+
       setIsDeleteModalOpen(false);
       setClientToDelete(null);
       triggerUpdate();
     } catch (err) {
       console.error(err);
-      setLocalError("Erro ao excluir o cliente. Ele pode estar vinculado a alguma cobrança.");
+      // Mostramos o erro que a API enviou (ex: "O cliente possui cobranças Pendentes...")
+      setLocalError(err.message);
       setIsDeleteModalOpen(false);
     } finally {
       setIsDeleting(false);
@@ -994,7 +1031,7 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-800/80 border-b border-gray-700 text-sm font-medium text-gray-400">
-                <th className="py-4 px-6 font-medium">ID</th>
+                {/* 4. ESCONDIDO O ID */}
                 <th className="py-4 px-6 font-medium">Cliente</th>
                 <th className="py-4 px-6 font-medium">Documento</th>
                 <th className="py-4 px-6 font-medium">Telefone</th>
@@ -1006,7 +1043,7 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
               {!isLoading && processedClients.length > 0 ? (
                 processedClients.map((client) => (
                   <tr key={client.id} className="hover:bg-gray-800/80 transition-colors group">
-                    <td className="py-4 px-6 text-sm text-gray-500">#{client.id?.toString().padStart(3, '0') || 'N/A'}</td>
+                    {/* 4. ESCONDIDO O ID */}
                     <td className="py-4 px-6">
                       <div className="flex flex-col"><span className="font-medium text-gray-200">{client.nome}</span><span className="text-sm text-gray-500">{client.email}</span></div>
                     </td>
@@ -1024,7 +1061,7 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
                   </tr>
                 ))
               ) : (!isLoading && (
-                <tr><td colSpan="6" className="py-12 text-center text-gray-500">Nenhum cliente encontrado.</td></tr>
+                <tr><td colSpan="5" className="py-12 text-center text-gray-500">Nenhum cliente encontrado.</td></tr>
               ))}
             </tbody>
           </table>
@@ -1043,10 +1080,26 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col">
               <div className="p-6 space-y-4">
-                <div className="space-y-1.5"><label className="text-sm font-medium text-gray-300">Nome Completo <span className="text-red-400">*</span></label><input type="text" required name="nome" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" /></div>
-                <div className="space-y-1.5"><label className="text-sm font-medium text-gray-300">Email <span className="text-red-400">*</span></label><input type="email" required name="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" /></div>
-                <div className="space-y-1.5"><label className="text-sm font-medium text-gray-300">Documento (Opcional)</label><input type="text" name="documento" value={formData.documento} onChange={(e) => setFormData({ ...formData, documento: e.target.value })} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" /></div>
-                <div className="space-y-1.5"><label className="text-sm font-medium text-gray-300">Telefone (Opcional)</label><input type="text" name="telefone" value={formData.telefone} onChange={(e) => setFormData({ ...formData, telefone: e.target.value })} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" /></div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-300">Nome Completo <span className="text-red-400">*</span></label>
+                  <input type="text" required name="nome" value={formData.nome} onChange={handleInputChange} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-300">Email <span className="text-red-400">*</span></label>
+                  <input type="email" required name="email" value={formData.email} onChange={handleInputChange} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+
+                {/* 3. DOCUMENTO OBRIGATÓRIO COM MÁSCARA */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-300">Documento (CPF/CNPJ) <span className="text-red-400">*</span></label>
+                  <input type="text" required maxLength={18} name="documento" placeholder="000.000.000-00 ou 00.000.000/0000-00" value={formData.documento} onChange={handleInputChange} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+
+                {/* 1 e 2. TELEFONE COM MÁSCARA */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-300">Telefone (Opcional)</label>
+                  <input type="text" maxLength={15} name="telefone" placeholder="(00) 00000-0000" value={formData.telefone} onChange={handleInputChange} disabled={isSubmitting} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
               </div>
               <div className="px-6 py-4 border-t border-gray-800 bg-gray-900/50 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">Cancelar</button>

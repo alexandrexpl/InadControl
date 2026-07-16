@@ -82,10 +82,22 @@ namespace InadControl.Api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteCliente(int id)
         {
-            var cliente = await _context.Clientes.FindAsync(id);
+            // Inclui as cobranças na busca para podermos verificar o status delas
+            var cliente = await _context.Clientes
+                .Include(c => c.Cobrancas)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
             if (cliente == null)
             {
-                return NotFound();
+                return NotFound("Cliente não encontrado.");
+            }
+
+            // REGRA DE NEGÓCIO: Verifica se existe alguma cobrança pendente ou atrasada
+            bool temDividaAtiva = cliente.Cobrancas.Any(c => c.Status == "Pendente" || c.Status == "Atrasada");
+
+            if (temDividaAtiva)
+            {
+                return BadRequest("Não é possível excluir este cliente. Ele possui cobranças Pendentes ou Atrasadas.");
             }
 
             _context.Clientes.Remove(cliente);
@@ -94,10 +106,11 @@ namespace InadControl.Api.Controllers
             return NoContent();
         }
 
-        //Checar se o cliente existe
+        // Adicione este método auxiliar aqui, logo abaixo do DeleteCliente!
         private bool ClienteExists(int id)
         {
             return _context.Clientes.Any(e => e.Id == id);
         }
+
     }
 }
