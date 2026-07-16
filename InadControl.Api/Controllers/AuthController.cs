@@ -21,17 +21,25 @@ namespace InadControl.Api.Controllers
             _context = context;
         }
 
-        // 1. ROTA DE REGISTO (Para criar o nosso Admin)
+        // 1. ROTA DE REGISTO (Para criar utilizadores)
         [HttpPost("register")]
         public async Task<ActionResult<Usuario>> Register(RegistroDto request)
         {
-            // Verifica se o email já existe
+            // Limpa os espaços em branco no início e no fim
+            request.Nome = request.Nome.Trim();
+            request.Email = request.Email.Trim();
+
             if (await _context.Usuarios.AnyAsync(u => u.Email == request.Email))
             {
                 return BadRequest("Este email já está em uso.");
             }
 
-            // CRIPTOGRAFAR A SENHA (Ninguém vai saber qual é a senha, nem nós programadores)
+            // NOVA REGRA: Impede a criação de nomes duplicados (ignorando maiúsculas/minúsculas)
+            if (await _context.Usuarios.AnyAsync(u => u.Nome.ToLower() == request.Nome.ToLower()))
+            {
+                return BadRequest("Este nome de utilizador já está em uso.");
+            }
+
             string senhaCriptografada = BCrypt.Net.BCrypt.HashPassword(request.Senha);
 
             var novoUsuario = new Usuario
@@ -39,7 +47,7 @@ namespace InadControl.Api.Controllers
                 Nome = request.Nome,
                 Email = request.Email,
                 SenhaHash = senhaCriptografada,
-                Regra = request.Regra // Pode ser "Admin" ou "Financeiro"
+                Regra = request.Regra
             };
 
             _context.Usuarios.Add(novoUsuario);
@@ -52,35 +60,90 @@ namespace InadControl.Api.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<string>> Login(LoginDto request)
         {
-            // Procura o utilizador pelo Email
             var user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Email == request.Email);
-            if (user == null)
-            {
-                return BadRequest("Email ou senha incorretos.");
-            }
+            if (user == null) return BadRequest("Email ou senha incorretos.");
 
-            // Verifica se a senha que ele digitou bate com a criptografia do banco
             bool senhaCorreta = BCrypt.Net.BCrypt.Verify(request.Senha, user.SenhaHash);
-            if (!senhaCorreta)
-            {
-                return BadRequest("Email ou senha incorretos.");
-            }
+            if (!senhaCorreta) return BadRequest("Email ou senha incorretos.");
 
-            // Se chegou aqui, está tudo certo! Vamos criar a "Pulseira VIP" (Token JWT)
             string token = CriarToken(user);
 
-            // Devolvemos o token e algumas informações básicas para o React usar
-            return Ok(new { 
-                token = token, 
-                nome = user.Nome, 
-                regra = user.Regra 
-            });
+            return Ok(new { token = token, nome = user.Nome, regra = user.Regra });
+        }
+
+        // 3. ROTA PARA LISTAR UTILIZADORES
+        [HttpGet("usuarios")]
+        public async Task<ActionResult<IEnumerable<object>>> GetUsuarios()
+        {
+            var usuarios = await _context.Usuarios
+                .Select(u => new { u.Id, u.Nome, u.Email, u.Regra })
+                .OrderBy(u => u.Nome)
+                .ToListAsync();
+                
+            return Ok(usuarios);
+        }
+
+        // 4. NOVA ROTA: EDITAR UTILIZADOR
+        [HttpPut("{id}")]
+        public async Task<IActionResult> EditarUsuario(int id, EdicaoUsuarioDto request)
+        {
+            // Limpa os espaços em branco no início e no fim
+            request.Nome = request.Nome.Trim();
+            request.Email = request.Email.Trim();
+
+            var user = await _context.Usuarios.FindAsync(id);
+            if (user == null) return NotFound("Utilizador não encontrado.");
+
+            // Impede que altere para um email que já pertence a outra pessoa
+            if (user.Email != request.Email && await _context.Usuarios.AnyAsync(u => u.Email == request.Email))
+            {
+                return BadRequest("Este email já está a ser utilizado por outra conta.");
+            }
+
+            // NOVA REGRA: Impede que mude para um nome que já pertence a outra pessoa
+            if (user.Nome != request.Nome && await _context.Usuarios.AnyAsync(u => u.Nome.ToLower() == request.Nome.ToLower()))
+            {
+                return BadRequest("Este nome de utilizador já está a ser utilizado por outra conta.");
+            }
+
+            user.Nome = request.Nome;
+            user.Email = request.Email;
+            user.Regra = request.Regra;
+
+            await _context.SaveChangesAsync();
+            return Ok("Utilizador atualizado com sucesso!");
+        }
+
+        // 5. NOVA ROTA: RESETAR SENHA
+        [HttpPut("{id}/reset-password")]
+        public async Task<IActionResult> ResetarSenha(int id, ResetSenhaDto request)
+        {
+            var user = await _context.Usuarios.FindAsync(id);
+            if (user == null) return NotFound("Utilizador não encontrado.");
+
+            // Criptografa a nova senha antes de a guardar
+            user.SenhaHash = BCrypt.Net.BCrypt.HashPassword(request.NovaSenha);
+            
+            await _context.SaveChangesAsync();
+            return Ok("Senha redefinida com sucesso!");
+        }
+
+        // 6. NOVA ROTA: EXCLUIR UTILIZADOR
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeletarUsuario(int id)
+        {
+            var user = await _context.Usuarios.FindAsync(id);
+            if (user == null) return NotFound("Utilizador não encontrado.");
+
+            _context.Usuarios.Remove(user);
+            await _context.SaveChangesAsync();
+
+            return Ok("Utilizador removido com sucesso!");
         }
 
         // --- FUNÇÃO PRIVADA MÁGICA: A FÁBRICA DE TOKENS ---
         private string CriarToken(Usuario user)
         {
-            // 1. O que vamos escrever na pulseira?
             List<Claim> claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.Nome),
@@ -88,11 +151,9 @@ namespace InadControl.Api.Controllers
                 new Claim(ClaimTypes.Role, user.Regra)
             };
 
-            // 2. A chave secreta que definimos no Program.cs
             var chave = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("InadControlSuperSecretaChaveJWT2026!!"));
             var creds = new SigningCredentials(chave, SecurityAlgorithms.HmacSha256Signature);
 
-            // 3. Montar o Token (Válido por 1 dia)
             var token = new JwtSecurityToken(
                 claims: claims,
                 expires: DateTime.Now.AddDays(1),
@@ -109,12 +170,25 @@ namespace InadControl.Api.Controllers
         public string Nome { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Senha { get; set; } = string.Empty;
-        public string Regra { get; set; } = "Financeiro"; // Default
+        public string Regra { get; set; } = "Financeiro";
     }
 
     public class LoginDto
     {
         public string Email { get; set; } = string.Empty;
         public string Senha { get; set; } = string.Empty;
+    }
+
+    // NOVOS DTOs PARA EDIÇÃO
+    public class EdicaoUsuarioDto
+    {
+        public string Nome { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Regra { get; set; } = string.Empty;
+    }
+
+    public class ResetSenhaDto
+    {
+        public string NovaSenha { get; set; } = string.Empty;
     }
 }
