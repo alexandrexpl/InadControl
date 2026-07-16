@@ -19,7 +19,10 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  Calculator
+  Calculator,
+  Lock,
+  Mail,
+  LogOut
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
@@ -27,15 +30,106 @@ import {
 
 const API_BASE_URL = 'http://localhost:5278/api';
 
+
+// ==========================================
+// 🧩 COMPONENTE: Tela de Login (A Portaria)
+// ==========================================
+const LoginPage = ({ onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErro('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/Auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha })
+      });
+
+      if (!response.ok) throw new Error('Email ou senha incorretos.');
+
+      const data = await response.json();
+      onLogin(data);
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
+      <div className="flex items-center gap-3 text-3xl font-bold text-white mb-8">
+        <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-lg shadow-purple-600/30">
+          <span className="text-white">IC</span>
+        </div>
+        <span>Inad<span className="text-purple-500">Control</span></span>
+      </div>
+
+      <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden relative">
+        <div className="h-1 w-full bg-gradient-to-r from-purple-600 to-blue-500"></div>
+
+        <div className="p-8 text-center border-b border-gray-800/50">
+          <h1 className="text-2xl font-bold text-white mb-2">Área Restrita</h1>
+          <p className="text-gray-400 text-sm">Insira as suas credenciais para aceder</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          {erro && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm text-center flex items-center justify-center gap-2">
+              <X size={16} /> {erro}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-300">Email</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail size={18} className="text-gray-500" />
+              </div>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="admin@inadcontrol.com" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-300">Senha</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock size={18} className="text-gray-500" />
+              </div>
+              <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••" />
+            </div>
+          </div>
+
+          <button type="submit" disabled={isLoading} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 disabled:opacity-70">
+            {isLoading ? <Loader2 size={18} className="animate-spin" /> : 'Entrar no Sistema'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // 🧩 COMPONENTE: Menu Lateral
-const Sidebar = ({ activeTab, setActiveTab }) => {
+const Sidebar = ({ activeTab, setActiveTab, usuario }) => {
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'clientes', icon: Users, label: 'Clientes' },
     { id: 'cobrancas', icon: WalletCards, label: 'Cobranças' },
     { id: 'calculadora', icon: Calculator, label: 'Simulador' }, // <-- NOVA ABA AQUI
-    { id: 'configuracoes', icon: Settings, label: 'Configurações' }
   ];
+
+  // Mostra as configurações APENAS se for Admin
+  if (usuario?.regra === 'Admin') {
+    menuItems.push({ id: 'configuracoes', icon: Settings, label: 'Configurações' });
+  }
+
 
   return (
     <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col hidden md:flex shrink-0">
@@ -1156,42 +1250,44 @@ const CalculadoraPage = () => {
 
 // 🧩 COMPONENTE RAIZ: O Maestro
 export default function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [usuario, setUsuario] = useState(JSON.parse(localStorage.getItem('usuario')));
   const [activeTab, setActiveTab] = useState('dashboard');
   const [clients, setClients] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [globalError, setGlobalError] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const fetchClients = useCallback(async () => {
-    try {
-      await Promise.resolve();
-      setIsLoading(true);
-      setGlobalError(null);
-      const response = await fetch(`${API_BASE_URL}/Clientes`);
-      if (!response.ok) throw new Error(`Erro: ${response.status}`);
-      const data = await response.json();
-      setClients(data);
-    } catch (err) {
-      console.error(err);
-      setGlobalError("Não foi possível carregar os clientes. Verifique se a API está a rodar.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const handleLogin = (data) => {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('usuario', JSON.stringify({ nome: data.nome, regra: data.regra }));
+    setToken(data.token);
+    setUsuario({ nome: data.nome, regra: data.regra });
+  };
 
-  useEffect(() => {
-    // eslint-disable-next-line
-    fetchClients();
-  }, [fetchClients, refreshTrigger]);
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    setToken(null);
+    setUsuario(null);
+  };
 
   const triggerUpdate = () => setRefreshTrigger(prev => prev + 1);
+
+  useEffect(() => {
+    if (token) {
+      fetch(`${API_BASE_URL}/Clientes`).then(r => r.json()).then(setClients).catch(console.error);
+    }
+  }, [token, refreshTrigger]);
+
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'dashboard': return 'Visão Geral (Dashboard)';
       case 'clientes': return 'Gestão de Clientes';
       case 'cobrancas': return 'Controle de Cobranças';
-      case 'calculadora': return 'Simulador de Juros';
+      case 'calculadora': return 'Simulador Financeiro';
       case 'configuracoes': return 'Configurações do Sistema';
       default: return '';
     }
@@ -1199,27 +1295,30 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans relative">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} usuario={usuario} />
+
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8 shrink-0">
           <h1 className="text-2xl font-semibold text-white">{getHeaderTitle()}</h1>
           <div className="flex items-center gap-4">
-            <div className="w-9 h-9 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-sm font-medium">AL</div>
+            <div className="flex flex-col text-right hidden sm:flex">
+              <span className="text-sm font-medium text-gray-200">{usuario?.nome}</span>
+              <span className="text-xs text-purple-400 font-medium">{usuario?.regra}</span>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-sm font-bold text-purple-400 uppercase">
+              {usuario?.nome?.substring(0, 2) || 'US'}
+            </div>
+            <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors ml-2" title="Sair do Sistema">
+              <LogOut size={18} />
+            </button>
           </div>
         </header>
 
-        {globalError && (
-          <div className="m-8 mb-0 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg flex items-center justify-between shadow-lg">
-            <div className="flex items-center gap-3"><AlertTriangle size={20} /><p>{globalError}</p></div>
-          </div>
-        )}
-
-        {/* Sistema de Roteamento */}
         {activeTab === 'dashboard' && <DashboardPage clients={clients} />}
         {activeTab === 'cobrancas' && <CobrancasPage clients={clients} triggerUpdate={triggerUpdate} />}
-        {activeTab === 'clientes' && <ClientesPage clients={clients} isLoading={isLoading} triggerUpdate={triggerUpdate} />}
+        {activeTab === 'clientes' && <ClientesPage clients={clients} triggerUpdate={triggerUpdate} />}
         {activeTab === 'calculadora' && <CalculadoraPage />}
-        {activeTab === 'configuracoes' && <div className="p-8"><p className="text-gray-400">Página em construção...</p></div>}
+        {activeTab === 'configuracoes' && <div className="p-8"><p className="text-gray-400">Página de Configurações Administrativas (Em Construção)...</p></div>}
       </main>
     </div>
   );
