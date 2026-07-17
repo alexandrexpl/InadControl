@@ -68,7 +68,7 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
         setIsModalOpen(true);
     };
 
-    // 1 e 2. MÁSCARAS DE FORMATAÇÃO E LIMITAÇÃO DE CARACTERES
+    // MÁSCARAS DE FORMATAÇÃO E LIMITAÇÃO DE CARACTERES
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         let formattedValue = value;
@@ -133,7 +133,7 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
         setIsDeleteModalOpen(true);
     };
 
-    // 5. NÃO PERMITIR EXCLUIR CLIENTE COM COBRANÇAS (Tratamento do Erro da API)
+    // NÃO PERMITIR EXCLUIR CLIENTE COM COBRANÇAS
     const confirmDelete = async () => {
         if (!clientToDelete) return;
         setIsDeleting(true);
@@ -141,7 +141,6 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
         try {
             const response = await fetch(`${API_BASE_URL}/Clientes/${clientToDelete.id}`, { method: 'DELETE' });
 
-            // Se a API devolver BadRequest (400), pegamos a mensagem exata para mostrar ao utilizador
             if (!response.ok) {
                 const errorMessage = await response.text();
                 throw new Error(errorMessage || 'Falha ao excluir o cliente');
@@ -152,7 +151,6 @@ const ClientesPage = ({ clients, isLoading, triggerUpdate }) => {
             triggerUpdate();
         } catch (err) {
             console.error(err);
-            // Mostramos o erro que a API enviou (ex: "O cliente possui cobranças Pendentes...")
             setLocalError(err.message);
             setIsDeleteModalOpen(false);
         } finally {

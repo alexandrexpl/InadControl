@@ -28,13 +28,12 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // O valor agora fica armazenado como string formatada visualmente (ex: "1.250,00")
     const [formData, setFormData] = useState({
         id: null,
         clienteId: '',
         tipoDocumento: '',
         numeroDocumento: '',
-        valorFormatado: '', // Novo campo para a máscara visual
+        valorFormatado: '',
         vencimento: '',
         status: 'Pendente',
         observacao: ''
@@ -44,7 +43,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
     const [faturaToDelete, setFaturaToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // 1. GET: Buscar Cobranças
+    // GET: Buscar Cobranças
     const fetchFaturas = useCallback(async () => {
         try {
             await Promise.resolve();
@@ -95,7 +94,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
             clienteId: clients.length > 0 ? clients[0].id : '',
             tipoDocumento: '',
             numeroDocumento: '',
-            valorFormatado: '', // Limpa o campo formatado
+            valorFormatado: '',
             vencimento: '',
             status: 'Pendente',
             observacao: ''
@@ -110,7 +109,6 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
             clienteId: fatura.clienteId || (clients.length > 0 ? clients[0].id : ''),
             tipoDocumento: fatura.tipoDocumento || '',
             numeroDocumento: fatura.numeroDocumento || '',
-            // Formata o número da API (ex: 1500.5) de volta para o padrão Brasil ("1.500,50") para exibir na edição
             valorFormatado: Number(fatura.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
             vencimento: fatura.dataVencimento.split('T')[0],
             status: fatura.status,
@@ -120,10 +118,10 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
         setIsModalOpen(true);
     };
 
-    // MÁSCARA 1: Moeda
+    // MÁSCARA MONETÁRIA
     const handleCurrencyChange = (e) => {
         let value = e.target.value;
-        // Remove tudo o que não for número (limpa a string)
+        // Remove tudo o que não for número
         value = value.replace(/\D/g, "");
 
         // Se ficou vazio, devolve vazio
@@ -132,14 +130,14 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
             return;
         }
 
-        // Converte os cêntimos (ex: "1234" vira 12.34)
+        // ( "1234" vira 12.34)
         const options = { minimumFractionDigits: 2 };
         const result = new Intl.NumberFormat('pt-BR', options).format(parseFloat(value) / 100);
 
         setFormData(prev => ({ ...prev, valorFormatado: result }));
     };
 
-    // MÁSCARA 2: Status Automático (Inteligência)
+    // Status Automático
     const handleDateChange = (e) => {
         const newDate = e.target.value;
 
@@ -148,12 +146,11 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
         today.setHours(0, 0, 0, 0);
 
         // A data inserida vem no formato YYYY-MM-DD
-        // Nós forçamos o fuso horário anexando 'T00:00:00' para não dar bug dependendo de onde o usuário está no Brasil.
         const selectedDate = new Date(`${newDate}T00:00:00`);
 
         let newStatus = formData.status;
 
-        // A regra inteligente atua principalmente quando estamos CRIANDO (Pendente) ou se já era Atrasada
+        // A regra inteligente 
         // Se já foi marcada como "Paga", não forçamos para "Atrasada" automaticamente
         if (formData.status !== 'Paga') {
             if (selectedDate < today) {
@@ -197,7 +194,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
         }
     };
 
-    // 2. POST e PUT: Salvar Fatura
+    // POST e PUT: Salvar Fatura
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -207,10 +204,9 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
         const url = isEditing ? `${API_BASE_URL}/Cobrancas/${formData.id}` : `${API_BASE_URL}/Cobrancas`;
         const method = isEditing ? 'PUT' : 'POST';
 
-        // LIMPEZA: Converte a string "1.250,50" de volta para o número puro do C# (1250.50)
         let valorPuro = 0;
         if (formData.valorFormatado) {
-            // Remove os pontos (milhares) e troca a vírgula por ponto (decimal)
+            // Remove os pontos e troca a vírgula por ponto decimal
             valorPuro = parseFloat(formData.valorFormatado.replace(/\./g, '').replace(',', '.'));
         }
 
@@ -219,7 +215,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
             tipoDocumento: formData.tipoDocumento || null,
             numeroDocumento: formData.numeroDocumento || null,
             valor: valorPuro, // Envia o número puro
-            dataVencimento: new Date(`${formData.vencimento}T00:00:00`).toISOString(), // Força o inicio do dia
+            dataVencimento: new Date(`${formData.vencimento}T00:00:00`).toISOString(),
             status: formData.status,
             observacao: formData.observacao || null
         };
@@ -253,7 +249,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
         setIsDeleteModalOpen(true);
     };
 
-    // 3. DELETE
+    // DELETE
     const confirmDelete = async () => {
         setIsDeleting(true);
         setLocalError(null);
@@ -400,7 +396,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
                                     <label className="text-sm font-medium text-gray-300">Cliente <span className="text-red-400">*</span></label>
                                     <select required value={formData.clienteId} onChange={(e) => setFormData({ ...formData, clienteId: e.target.value })} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none">
                                         <option value="" disabled>Selecione um cliente...</option>
-                                        {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                        {[...clients].sort((a, b) => a.nome.localeCompare(b.nome)).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                                     </select>
                                 </div>
 
@@ -409,12 +405,12 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
                                         <label className="text-sm font-medium text-gray-300">Tipo de Documento</label>
                                         <select value={formData.tipoDocumento} onChange={(e) => setFormData({ ...formData, tipoDocumento: e.target.value, numeroDocumento: e.target.value === '' ? '' : formData.numeroDocumento })} className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none">
                                             <option value="">Sem Documento</option>
+                                            <option value="Boleto">Boleto</option>
+                                            <option value="DACTE">DACTE</option>
                                             <option value="Fatura">Fatura</option>
                                             <option value="Nota de Serviço">Nota de Serviço</option>
                                             <option value="Nota Fiscal">Nota Fiscal</option>
-                                            <option value="DACTE">DACTE</option>
                                             <option value="Recibo">Recibo</option>
-                                            <option value="Boleto">Boleto</option>
                                         </select>
                                     </div>
                                     <div className="space-y-1.5">
@@ -448,7 +444,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
                                         </div>
                                     </div>
 
-                                    {/* DATA LIGADA À INTELIGÊNCIA ARTIFICIAL (handleDateChange) */}
+                                    {/* (handleDateChange) */}
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium text-gray-300">Vencimento <span className="text-red-400">*</span></label>
                                         <input

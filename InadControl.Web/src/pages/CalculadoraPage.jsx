@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calculator, Search, Loader2, AlertCircle } from 'lucide-react'; // <-- Adicione esta linha!
+import { Calculator, Search, Loader2, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5278/api';
 
