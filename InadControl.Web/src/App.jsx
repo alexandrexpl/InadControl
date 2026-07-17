@@ -117,54 +117,6 @@ const LoginPage = ({ onLogin }) => {
   );
 };
 
-// 🧩 COMPONENTE: Menu Lateral
-const Sidebar = ({ activeTab, setActiveTab, usuario }) => {
-  const menuItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'clientes', icon: Users, label: 'Clientes' },
-    { id: 'cobrancas', icon: WalletCards, label: 'Cobranças' },
-    { id: 'calculadora', icon: Calculator, label: 'Simulador' }, // <-- NOVA ABA AQUI
-  ];
-
-  // Mostra as configurações APENAS se for Admin
-  if (usuario?.regra === 'Admin') {
-    menuItems.push({ id: 'configuracoes', icon: Settings, label: 'Configurações' });
-  }
-
-
-  return (
-    <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col hidden md:flex shrink-0">
-      <div className="h-16 flex items-center px-6 border-b border-gray-800">
-        <div className="flex items-center gap-2 text-xl font-bold text-white">
-          <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
-            <span className="text-white">IC</span>
-          </div>
-          <span>Inad<span className="text-purple-500">Control</span></span>
-        </div>
-      </div>
-      <nav className="flex-1 py-6 px-3 space-y-1">
-        {menuItems.map(item => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${isActive
-                ? 'bg-purple-600/10 text-purple-400 font-medium border border-purple-500/20'
-                : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'
-                }`}
-            >
-              <Icon size={20} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-    </aside>
-  );
-};
-
 // 🧩 COMPONENTE TELA: Dashboard
 const DashboardPage = ({ clients }) => {
   const [faturas, setFaturas] = useState([]);
@@ -405,7 +357,10 @@ const DashboardPage = ({ clients }) => {
               {faturasAtrasadas7Dias.length > 0 ? faturasAtrasadas7Dias.map(fatura => (
                 <tr key={fatura.id} className="hover:bg-gray-800/50 transition-colors">
                   <td className="py-3 px-6 text-sm font-medium text-gray-200">{fatura.clienteNome}</td>
-                  <td className="py-3 px-6 text-sm text-gray-400">{fatura.tipoDocumento || 'Sem doc.'} {fatura.numeroDocumento}</td>
+                  <td className="py-3 px-6 text-sm text-gray-400">
+                    {/* ALTERAÇÃO AQUI: Adiciona o "nº" apenas se houver número de documento */}
+                    {fatura.tipoDocumento || 'Sem doc.'} {fatura.numeroDocumento ? `nº ${fatura.numeroDocumento}` : ''}
+                  </td>
                   <td className="py-3 px-6 text-sm text-red-400 font-medium">{new Date(fatura.dataVencimento).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</td>
                   <td className="py-3 px-6 text-sm text-gray-200 font-medium text-right">R$ {fatura.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                 </tr>
@@ -425,7 +380,6 @@ const DashboardPage = ({ clients }) => {
   );
 };
 
-
 // COMPONENTE TELA: Cobranças (TOTALMENTE INTEGRADO À API)
 const CobrancasPage = ({ clients, triggerUpdate }) => {
   const [faturas, setFaturas] = useState([]);
@@ -438,12 +392,14 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // O valor agora fica armazenado como string formatada visualmente (ex: "1.250,00")
   const [formData, setFormData] = useState({
     id: null,
     clienteId: '',
     tipoDocumento: '',
     numeroDocumento: '',
-    valor: '',
+    valorFormatado: '', // Novo campo para a máscara visual
     vencimento: '',
     status: 'Pendente',
     observacao: ''
@@ -504,7 +460,7 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
       clienteId: clients.length > 0 ? clients[0].id : '',
       tipoDocumento: '',
       numeroDocumento: '',
-      valor: '',
+      valorFormatado: '', // Limpa o campo formatado
       vencimento: '',
       status: 'Pendente',
       observacao: ''
@@ -519,13 +475,60 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
       clienteId: fatura.clienteId || (clients.length > 0 ? clients[0].id : ''),
       tipoDocumento: fatura.tipoDocumento || '',
       numeroDocumento: fatura.numeroDocumento || '',
-      valor: fatura.valor,
+      // Formata o número da API (ex: 1500.5) de volta para o padrão Brasil ("1.500,50") para exibir na edição
+      valorFormatado: Number(fatura.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
       vencimento: fatura.dataVencimento.split('T')[0],
       status: fatura.status,
       observacao: fatura.observacao || ''
     });
     setLocalError(null);
     setIsModalOpen(true);
+  };
+
+  // MÁSCARA 1: Moeda
+  const handleCurrencyChange = (e) => {
+    let value = e.target.value;
+    // Remove tudo o que não for número (limpa a string)
+    value = value.replace(/\D/g, "");
+
+    // Se ficou vazio, devolve vazio
+    if (!value) {
+      setFormData(prev => ({ ...prev, valorFormatado: "" }));
+      return;
+    }
+
+    // Converte os cêntimos (ex: "1234" vira 12.34)
+    const options = { minimumFractionDigits: 2 };
+    const result = new Intl.NumberFormat('pt-BR', options).format(parseFloat(value) / 100);
+
+    setFormData(prev => ({ ...prev, valorFormatado: result }));
+  };
+
+  // MÁSCARA 2: Status Automático (Inteligência)
+  const handleDateChange = (e) => {
+    const newDate = e.target.value;
+
+    // Descobre a data de hoje (sem horas, apenas dia, mês, ano) para comparar corretamente
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // A data inserida vem no formato YYYY-MM-DD
+    // Nós forçamos o fuso horário anexando 'T00:00:00' para não dar bug dependendo de onde o usuário está no Brasil.
+    const selectedDate = new Date(`${newDate}T00:00:00`);
+
+    let newStatus = formData.status;
+
+    // A regra inteligente atua principalmente quando estamos CRIANDO (Pendente) ou se já era Atrasada
+    // Se já foi marcada como "Paga", não forçamos para "Atrasada" automaticamente
+    if (formData.status !== 'Paga') {
+      if (selectedDate < today) {
+        newStatus = 'Atrasada';
+      } else {
+        newStatus = 'Pendente';
+      }
+    }
+
+    setFormData(prev => ({ ...prev, vencimento: newDate, status: newStatus }));
   };
 
   // BOTÃO RÁPIDO: Marcar como pago
@@ -569,12 +572,19 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
     const url = isEditing ? `${API_BASE_URL}/Cobrancas/${formData.id}` : `${API_BASE_URL}/Cobrancas`;
     const method = isEditing ? 'PUT' : 'POST';
 
+    // LIMPEZA: Converte a string "1.250,50" de volta para o número puro do C# (1250.50)
+    let valorPuro = 0;
+    if (formData.valorFormatado) {
+      // Remove os pontos (milhares) e troca a vírgula por ponto (decimal)
+      valorPuro = parseFloat(formData.valorFormatado.replace(/\./g, '').replace(',', '.'));
+    }
+
     const payload = {
       clienteId: parseInt(formData.clienteId),
       tipoDocumento: formData.tipoDocumento || null,
       numeroDocumento: formData.numeroDocumento || null,
-      valor: parseFloat(formData.valor),
-      dataVencimento: new Date(formData.vencimento).toISOString(),
+      valor: valorPuro, // Envia o número puro
+      dataVencimento: new Date(`${formData.vencimento}T00:00:00`).toISOString(), // Força o inicio do dia
       status: formData.status,
       observacao: formData.observacao || null
     };
@@ -786,13 +796,33 @@ const CobrancasPage = ({ clients, triggerUpdate }) => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
+
+                  {/* NOVO INPUT COM MÁSCARA MONETÁRIA */}
+                  <div className="space-y-1.5 relative">
                     <label className="text-sm font-medium text-gray-300">Valor (R$) <span className="text-red-400">*</span></label>
-                    <input type="number" step="0.01" required value={formData.valor} onChange={(e) => setFormData({ ...formData, valor: e.target.value })} placeholder="0.00" className="w-full bg-gray-950 border border-gray-800 text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    <div className="relative">
+                      <span className="absolute left-4 top-2.5 text-gray-500 font-medium">R$</span>
+                      <input
+                        type="text"
+                        required
+                        value={formData.valorFormatado}
+                        onChange={handleCurrencyChange}
+                        placeholder="0,00"
+                        className="w-full bg-gray-950 border border-gray-800 text-emerald-400 font-medium rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
                   </div>
+
+                  {/* DATA LIGADA À INTELIGÊNCIA ARTIFICIAL (handleDateChange) */}
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-gray-300">Vencimento <span className="text-red-400">*</span></label>
-                    <input type="date" required value={formData.vencimento} onChange={(e) => setFormData({ ...formData, vencimento: e.target.value })} className="w-full bg-gray-950 border border-gray-800 text-gray-400 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 [color-scheme:dark]" />
+                    <input
+                      type="date"
+                      required
+                      value={formData.vencimento}
+                      onChange={handleDateChange}
+                      className="w-full bg-gray-950 border border-gray-800 text-gray-400 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 [color-scheme:dark]"
+                    />
                   </div>
                 </div>
 
@@ -1555,6 +1585,10 @@ const ConfiguracoesPage = ({ usuarioLogado }) => {
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [usuario, setUsuario] = useState(JSON.parse(localStorage.getItem('usuario')));
+
+  // NOVO: Estado para guardar o nome da empresa (guarda no navegador para não perder)
+  const [nomeEmpresa, setNomeEmpresa] = useState(localStorage.getItem('nomeEmpresa') || 'Sua Empresa Ltda');
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [clients, setClients] = useState([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -1571,13 +1605,28 @@ export default function App() {
     localStorage.removeItem('usuario');
     setToken(null);
     setUsuario(null);
+    setActiveTab('dashboard');
+  };
+
+  // NOVO: Função para o Admin alterar o nome da empresa
+  const handleEditEmpresa = () => {
+    if (usuario?.regra !== 'Admin') return; // Apenas admin pode alterar
+
+    const novoNome = window.prompt("Digite o nome da sua empresa:", nomeEmpresa);
+    if (novoNome && novoNome.trim() !== "") {
+      setNomeEmpresa(novoNome.trim());
+      localStorage.setItem('nomeEmpresa', novoNome.trim());
+    }
   };
 
   const triggerUpdate = () => setRefreshTrigger(prev => prev + 1);
 
   useEffect(() => {
     if (token) {
-      fetch(`${API_BASE_URL}/Clientes`).then(r => r.json()).then(setClients).catch(console.error);
+      fetch(`${API_BASE_URL}/Clientes`)
+        .then(r => r.json())
+        .then(setClients)
+        .catch(console.error);
     }
   }, [token, refreshTrigger]);
 
@@ -1598,7 +1647,53 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans relative">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} usuario={usuario} />
+      {/* Menu Lateral Inline */}
+      <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col hidden md:flex shrink-0">
+        <div className="h-16 flex items-center px-6 border-b border-gray-800">
+          <div className="flex items-center gap-2 text-xl font-bold text-white">
+            <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+              <span className="text-white">IC</span>
+            </div>
+            <span>Inad<span className="text-purple-500">Control</span></span>
+          </div>
+        </div>
+
+        {/* NOVA SEÇÃO: Nome da Empresa */}
+        <div className="px-6 py-4 border-b border-gray-800/60 bg-gray-900/20">
+          <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Licenciado para</p>
+          <div
+            onClick={handleEditEmpresa}
+            className={`flex items-center justify-between group ${usuario?.regra === 'Admin' ? 'cursor-pointer' : ''}`}
+            title={usuario?.regra === 'Admin' ? "Clique para alterar o nome da empresa" : nomeEmpresa}
+          >
+            <span className="text-sm font-medium text-gray-200 truncate pr-2">{nomeEmpresa}</span>
+            {usuario?.regra === 'Admin' && (
+              <Edit2 size={14} className="text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-purple-400 shrink-0" />
+            )}
+          </div>
+        </div>
+
+        <nav className="flex-1 py-6 px-3 space-y-1">
+          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20 font-medium' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}>
+            <LayoutDashboard size={20} /><span>Dashboard</span>
+          </button>
+          <button onClick={() => setActiveTab('clientes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${activeTab === 'clientes' ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20 font-medium' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}>
+            <Users size={20} /><span>Clientes</span>
+          </button>
+          <button onClick={() => setActiveTab('cobrancas')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${activeTab === 'cobrancas' ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20 font-medium' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}>
+            <WalletCards size={20} /><span>Cobranças</span>
+          </button>
+          <button onClick={() => setActiveTab('calculadora')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${activeTab === 'calculadora' ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20 font-medium' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}>
+            <Calculator size={20} /><span>Simulador</span>
+          </button>
+
+          {usuario?.regra === 'Admin' && (
+            <button onClick={() => setActiveTab('configuracoes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${activeTab === 'configuracoes' ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20 font-medium' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'}`}>
+              <Settings size={20} /><span>Configurações</span>
+            </button>
+          )}
+        </nav>
+      </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8 shrink-0">
@@ -1621,7 +1716,7 @@ export default function App() {
         {activeTab === 'cobrancas' && <CobrancasPage clients={clients} triggerUpdate={triggerUpdate} />}
         {activeTab === 'clientes' && <ClientesPage clients={clients} triggerUpdate={triggerUpdate} />}
         {activeTab === 'calculadora' && <CalculadoraPage />}
-        {activeTab === 'configuracoes' && <ConfiguracoesPage usuarioLogado={usuario} />}
+        {activeTab === 'configuracoes' && usuario?.regra === 'Admin' && <ConfiguracoesPage />}
       </main>
     </div>
   );
