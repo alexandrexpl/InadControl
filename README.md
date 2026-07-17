@@ -69,7 +69,7 @@ Antes de começar, certifique-se de ter as seguintes ferramentas instaladas na s
 4. Rode a API com o comando: `dotnet run`
 
 ### 2. Iniciar o Frontend (React)
-1. Abra um novo terminal na pasta do frontend (`InadControl.Web` ou `src`).
+1. Abra um novo terminal na pasta do frontend (`InadControl.Web`).
 2. Instale as dependências com: `npm install`
 3. Inicie o servidor de desenvolvimento com: `npm run dev`
 
